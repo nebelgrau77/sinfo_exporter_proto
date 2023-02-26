@@ -1,19 +1,66 @@
+//!
+
 use std::process::Command;
 use regex::Regex;
 use lazy_static::lazy_static;
+use prometheus_exporter::prometheus::register_gauge;
+use std::net::SocketAddr;
 
 struct Node {
+    /* holds various info about a single node */
     gpu_type: String,
     gpu_num: u8,
 }
 
-fn main() {
+fn main() {       
     
+    // parse the address used to bind exporter to
+    let addr_raw = "127.0.0.1:9199";
+    let addr: SocketAddr = addr_raw.parse().expect("couldn't parse listening address");
+
+    // start exporter and update metrics every second
+    let exporter = prometheus_exporter::start(addr).expect("couldn't start the exporter");
+    let duration = std::time::Duration::from_millis(1000);
+
+    // create metric ()
+ 
+    let nodemetric = register_gauge!("number_of_a100_used", "number of a100 GPUs used").expect("couldn't create gauge");
+
     let sinfo = Command::new("fakesinfo").output().expect("reading sinfo didn't work");
 
     let sinfo_output = String::from_utf8(sinfo.stdout).expect("retrieving stdout from sinfo output didn't work");
 
+    let mut a100s_used: u8 = 0;
+    let mut a100s_total: u8 = 0;
+    let mut t4s_used: u8 = 0;
+    let mut t4s_total: u8 = 0;
+
+    for line in sinfo_output.lines().skip(1) {
+
+        let node = pattern_getter(line);
+
+        match node.gpu_type.as_str() {
+            "a100" => {
+                a100s_used += node.gpu_num;
+                a100s_total += 8; // a100 nodes have 8 gpus each
+            }
+            "t4" => {
+                t4s_used += node.gpu_num;
+                t4s_total += 4; // t4 nodes have 4 gpus each
+            }
+            _ => ()
+        }
+
+        println!("original line:\t{}", line);
+
+    }
+
+    println!("a100s: {}/{}, t4s: {}/{}", a100s_used, a100s_total, t4s_used, t4s_total);
+
+    /*
     for (n, line) in sinfo_output.lines().enumerate() {
+
+
 
         if n == 0 {
             println!("this is the data:");
@@ -22,16 +69,8 @@ fn main() {
             let node = pattern_getter(line);
             println!("line: {}\tnode has {} GPUs of type {}", line, node.gpu_num, node.gpu_type);
         }
-
-
-        // println!("line number {} is {}", n, line);
-
-    }   
-
-    //let node = pattern_getter(&sinfo_output.as_str());
-
-    //println!("fake node has {} GPUs of type {}", node.gpu_num, node.gpu_type);
-
+        
+    }   */
 
 }
 
@@ -41,22 +80,7 @@ fn pattern_getter(text: &str) -> Node {
     lazy_static!{
         static ref RE: Regex = Regex::new(r"gpu:(\D\d*):(\d{1})\(IDX:(.*)\)").unwrap();      
     }
-    
-    /* this works
-
-    let mut node = Node {
-        gpu_type: "unknown".to_string(),
-        gpu_num: 0,
-    };
-
-    for cap in RE.captures_iter(text) {                       
-        node.gpu_type = cap[1].to_string();
-        node.gpu_num = cap[2].parse::<u8>().unwrap();                
-    };
-    
-    return node
-
-    */
+  
 
     let cap = RE.captures(text).unwrap();
     
@@ -66,13 +90,5 @@ fn pattern_getter(text: &str) -> Node {
     };
 
     return node
-
-    /*
-    let node_data = RE.captures_iter(text).filter_map(|cap| {
-        let groups = (cap.get(1), cap.get(2));
-    });
-
-     */
-
     
 }
