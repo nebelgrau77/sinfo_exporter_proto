@@ -24,53 +24,65 @@ fn main() {
 
     // create metric ()
  
-    let nodemetric = register_gauge!("number_of_a100_used", "number of a100 GPUs used").expect("couldn't create gauge");
+    let metric_a100s_used = register_gauge!("node_used_a100s", "number of a100 GPUs used").expect("couldn't create gauge");
+    let metric_a100s_total = register_gauge!("node_total_a100s", "number of a100 GPUs available").expect("couldn't create gauge");
+    let metric_t4s_used = register_gauge!("node_used_t4s", "number of t4 GPUs used").expect("couldn't create gauge");
+    let metric_t4s_total = register_gauge!("node_total_t4s", "number of t4 GPUs available").expect("couldn't create gauge");
+    
 
-    let sinfo = Command::new("fakesinfo").output().expect("reading sinfo didn't work");
+    loop {
+        {
+            // will block until duration is elapsed
+            let _guard = exporter.wait_duration(duration);
 
-    let sinfo_output = String::from_utf8(sinfo.stdout).expect("retrieving stdout from sinfo output didn't work");
+            println!("updating metrics");
 
-    let mut a100s_used: u8 = 0;
-    let mut a100s_total: u8 = 0;
-    let mut t4s_used: u8 = 0;
-    let mut t4s_total: u8 = 0;
+            // update metrics with new values
+            
+            // get info from the external program (fakesinfo in this case)
+            let sinfo = Command::new("fakesinfo").output().expect("reading sinfo didn't work");
 
-    for line in sinfo_output.lines().skip(1) {
+            let sinfo_output = String::from_utf8(sinfo.stdout).expect("retrieving stdout from sinfo output didn't work");
 
-        let node = pattern_getter(line);
+            // want to collect numbers of used and total GPUs from all the nodes
+            let mut a100s_used: u8 = 0;
+            let mut a100s_total: u8 = 0;
+            let mut t4s_used: u8 = 0;
+            let mut t4s_total: u8 = 0;
 
-        match node.gpu_type.as_str() {
-            "a100" => {
-                a100s_used += node.gpu_num;
-                a100s_total += 8; // a100 nodes have 8 gpus each
+            // count the GPUs in the nodes
+            for line in sinfo_output.lines().skip(1) {
+
+                let node = pattern_getter(line);
+
+                match node.gpu_type.as_str() {
+                    "a100" => {
+                        a100s_used += node.gpu_num;
+                        a100s_total += 8; // a100 nodes have 8 gpus each
+                    }
+                    "t4" => {
+                        t4s_used += node.gpu_num;
+                        t4s_total += 4; // t4 nodes have 4 gpus each
+                    }
+                    _ => ()
+                }
+
+                // just for debugging
+                println!("original line:\t{}", line); 
+
             }
-            "t4" => {
-                t4s_used += node.gpu_num;
-                t4s_total += 4; // t4 nodes have 4 gpus each
-            }
-            _ => ()
+
+            println!("a100s: {}/{}, t4s: {}/{}", a100s_used, a100s_total, t4s_used, t4s_total);
+
+            metric_a100s_used.set(a100s_used as f64);
+            metric_a100s_total.set(a100s_total as f64);
+            metric_t4s_used.set(t4s_used as f64);
+            metric_t4s_total.set(t4s_total as f64);
+
+
         }
-
-        println!("original line:\t{}", line);
-
     }
 
-    println!("a100s: {}/{}, t4s: {}/{}", a100s_used, a100s_total, t4s_used, t4s_total);
-
-    /*
-    for (n, line) in sinfo_output.lines().enumerate() {
-
-
-
-        if n == 0 {
-            println!("this is the data:");
-        } else {
-
-            let node = pattern_getter(line);
-            println!("line: {}\tnode has {} GPUs of type {}", line, node.gpu_num, node.gpu_type);
-        }
-        
-    }   */
 
 }
 
