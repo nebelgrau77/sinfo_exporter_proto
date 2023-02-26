@@ -1,10 +1,11 @@
 //!
 
 use std::process::Command;
+use std::net::SocketAddr;
 use regex::Regex;
 use lazy_static::lazy_static;
 use prometheus_exporter::prometheus::register_gauge;
-use std::net::SocketAddr;
+use clap::{Arg, arg, command, value_parser};
 
 struct Node {
     /* holds various info about a single node */
@@ -14,22 +15,44 @@ struct Node {
 
 fn main() {       
     
-    // parse the address used to bind exporter to
-    let addr_raw = "127.0.0.1:9199";
+        //App::new("GPU sinfo Prometheus exporter")
+    let matches = command!()    
+        .version("0.1.0")
+        .author("Michal")
+        .about("Prometheus exporter for GPU number from SLURM sinfo")   
+        .arg(Arg::new("PORT")
+                    .short('p')
+                    .long("port")              
+                    .value_parser(value_parser!(u16))      
+                    .default_value("9199")
+                    .help("Which port Prometheus should listen to"))
+        .arg(Arg::new("INTERVAL")
+                    .short('i')
+                    .long("interval")              
+                    .value_parser(value_parser!(u16))      
+                    .default_value("5000")
+                    .help("How often the metrics should be updated, in miliseconds"))
+        .get_matches();
+
+    let port = matches.get_one::<u16>("PORT").unwrap();
+    
+    let addr_raw = format!("127.0.0.1:{}", port);
     let addr: SocketAddr = addr_raw.parse().expect("couldn't parse listening address");
 
     // start exporter and update metrics every second
     let exporter = prometheus_exporter::start(addr).expect("couldn't start the exporter");
-    let duration = std::time::Duration::from_millis(1000);
 
-    // create metric ()
- 
+    let interval = matches.get_one::<u16>("INTERVAL").unwrap();
+
+    let duration = std::time::Duration::from_millis(*interval as u64);
+
+    // create metrics 
     let metric_a100s_used = register_gauge!("node_used_a100s", "number of a100 GPUs used").expect("couldn't create gauge");
     let metric_a100s_total = register_gauge!("node_total_a100s", "number of a100 GPUs available").expect("couldn't create gauge");
     let metric_t4s_used = register_gauge!("node_used_t4s", "number of t4 GPUs used").expect("couldn't create gauge");
     let metric_t4s_total = register_gauge!("node_total_t4s", "number of t4 GPUs available").expect("couldn't create gauge");
     
-
+    
     loop {
         {
             // will block until duration is elapsed
