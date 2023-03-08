@@ -2,20 +2,11 @@
 
 use std::process::Command;
 use std::net::SocketAddr;
-use regex::Regex;
-use lazy_static::lazy_static;
-use prometheus_exporter::prometheus::register_gauge;
+use prometheus_exporter::prometheus::{register_int_gauge};
 use clap::{Arg, arg, command, value_parser, builder::Str};
 
-struct Node {
-    /* holds various info about a single node */
-    //node_name: String,
-    partition_name: String,
-    partition_type: String,
-    instance_type: String,
-    gpu_type: String,
-    gpu_num: u8,
-}
+use exporter_proto::pattern_re;
+
 
 fn main() {       
     
@@ -51,12 +42,12 @@ fn main() {
     let duration = std::time::Duration::from_millis(*interval as u64);
 
     // create metrics 
-    let metric_a100s_used = register_gauge!("node_used_a100s", "number of a100 GPUs used").expect("couldn't create gauge");
-    let metric_a100s_total = register_gauge!("node_total_a100s", "number of a100 GPUs available").expect("couldn't create gauge");
-    let metric_t4s_used = register_gauge!("node_used_t4s", "number of t4 GPUs used").expect("couldn't create gauge");
-    let metric_t4s_total = register_gauge!("node_total_t4s", "number of t4 GPUs available").expect("couldn't create gauge");
+    let metric_a100s_used = register_int_gauge!("node_used_a100s", "number of a100 GPUs used").expect("couldn't create gauge");
+    let metric_a100s_total = register_int_gauge!("node_total_a100s", "number of a100 GPUs available").expect("couldn't create gauge");
     
-    
+    let metric_t4s_used = register_int_gauge!("node_used_t4s", "number of t4 GPUs used").expect("couldn't create counter");
+    let metric_t4s_total = register_int_gauge!("node_total_t4s", "number of t4 GPUs available").expect("couldn't create counter");
+        
     loop {
         {
             // will block until duration is elapsed
@@ -78,9 +69,9 @@ fn main() {
             let mut t4s_total: u8 = 0;
 
             // count the GPUs in the nodes
-            for line in sinfo_output.lines().skip(1) {
+            for line in sinfo_output.lines() {
 
-                let node = pattern_getter(line);
+                let node = pattern_re::pattern_getter(line);
 
                 match node.gpu_type.as_str() {
                     "a100" => {
@@ -101,10 +92,11 @@ fn main() {
 
             println!("a100s: {}/{}, t4s: {}/{}", a100s_used, a100s_total, t4s_used, t4s_total);
 
-            metric_a100s_used.set(a100s_used as f64);
-            metric_a100s_total.set(a100s_total as f64);
-            metric_t4s_used.set(t4s_used as f64);
-            metric_t4s_total.set(t4s_total as f64);
+            metric_a100s_used.set(a100s_used as i64);
+            metric_a100s_total.set(a100s_total as i64);            
+            metric_t4s_used.set(t4s_used as i64);
+            metric_t4s_total.set(t4s_total as i64);
+
 
 
         }
@@ -114,24 +106,3 @@ fn main() {
 }
 
 
-fn pattern_getter(text: &str) -> Node {
-
-    lazy_static!{
-        static ref RE: Regex = Regex::new(r"(\S*)-(\S*)-(\S*)-(\d{1})\s*gpu:(\D\d*):(\d{1})\(IDX:(.*)\)").unwrap();      
-    }
-  
-
-    let cap = RE.captures(text).unwrap();
-    
-    let node: Node = Node {
-        //node_name: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        partition_name: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        partition_type: cap.get(2).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        instance_type: cap.get(3).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        gpu_type: cap.get(5).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        gpu_num: cap.get(6).map_or(0, |c| c.as_str().parse::<u8>().unwrap()),
-    };
-
-    return node
-    
-}
