@@ -5,11 +5,14 @@ use std::net::SocketAddr;
 use regex::Regex;
 use lazy_static::lazy_static;
 use prometheus_exporter::prometheus::register_gauge;
-use clap::{Arg, arg, command, value_parser};
+use clap::{Arg, arg, command, value_parser, builder::Str};
 
 struct Node {
     /* holds various info about a single node */
-    node_name: String,
+    //node_name: String,
+    partition_name: String,
+    partition_type: String,
+    instance_type: String,
     gpu_type: String,
     gpu_num: u8,
 }
@@ -92,7 +95,7 @@ fn main() {
                 }
 
                 // just for debugging
-                println!("original line:\t{}, node name: {}", line, node.node_name); 
+                println!("original line:\t{}, partition name: {}, partition type: {}, instance_type: {}", line, node.partition_name, node.partition_type, node.instance_type); 
 
             }
 
@@ -114,16 +117,19 @@ fn main() {
 fn pattern_getter(text: &str) -> Node {
 
     lazy_static!{
-        static ref RE: Regex = Regex::new(r"(\S*)\s*gpu:(\D\d*):(\d{1})\(IDX:(.*)\)").unwrap();      
+        static ref RE: Regex = Regex::new(r"(\S*)-(\S*)-(\S*)-(\d{1})\s*gpu:(\D\d*):(\d{1})\(IDX:(.*)\)").unwrap();      
     }
   
 
     let cap = RE.captures(text).unwrap();
     
     let node: Node = Node {
-        node_name: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        gpu_type: cap.get(2).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        gpu_num: cap.get(3).map_or(0, |c| c.as_str().parse::<u8>().unwrap()),
+        //node_name: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        partition_name: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        partition_type: cap.get(2).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        instance_type: cap.get(3).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        gpu_type: cap.get(5).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        gpu_num: cap.get(6).map_or(0, |c| c.as_str().parse::<u8>().unwrap()),
     };
 
     return node
