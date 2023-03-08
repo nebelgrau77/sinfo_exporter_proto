@@ -9,6 +9,7 @@ use clap::{Arg, arg, command, value_parser};
 
 struct Node {
     /* holds various info about a single node */
+    node_name: String,
     gpu_type: String,
     gpu_num: u8,
 }
@@ -91,7 +92,7 @@ fn main() {
                 }
 
                 // just for debugging
-                println!("original line:\t{}", line); 
+                println!("original line:\t{}, node name: {}", line, node.node_name); 
 
             }
 
@@ -113,15 +114,16 @@ fn main() {
 fn pattern_getter(text: &str) -> Node {
 
     lazy_static!{
-        static ref RE: Regex = Regex::new(r"gpu:(\D\d*):(\d{1})\(IDX:(.*)\)").unwrap();      
+        static ref RE: Regex = Regex::new(r"(\S*)\s*gpu:(\D\d*):(\d{1})\(IDX:(.*)\)").unwrap();      
     }
   
 
     let cap = RE.captures(text).unwrap();
     
     let node: Node = Node {
-        gpu_type: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
-        gpu_num: cap.get(2).map_or(0, |c| c.as_str().parse::<u8>().unwrap()),
+        node_name: cap.get(1).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        gpu_type: cap.get(2).map_or("unknown".to_string(), |c| c.as_str().to_string()),
+        gpu_num: cap.get(3).map_or(0, |c| c.as_str().parse::<u8>().unwrap()),
     };
 
     return node
