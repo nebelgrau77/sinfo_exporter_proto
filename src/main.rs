@@ -2,7 +2,7 @@
 
 use std::process::Command;
 use std::net::SocketAddr;
-use prometheus_exporter::prometheus::{register_int_gauge};
+use prometheus_exporter::prometheus::{register_int_gauge, opts, labels, register_int_gauge_vec};
 use clap::{Arg, arg, command, value_parser, builder::Str};
 
 use exporter_proto::pattern_re;
@@ -41,9 +41,21 @@ fn main() {
 
     let duration = std::time::Duration::from_millis(*interval as u64);
 
+    let a100s_used_opts = opts!("node_used_a100s",
+                                "number of a100s used",
+                                labels!{"test" => "hello", "foo" => "bar"},
+                                labels!{"ans" => "42",});
+
+    
+
+    
+
     // create metrics 
-    let metric_a100s_used = register_int_gauge!("node_used_a100s", "number of a100 GPUs used").expect("couldn't create gauge");
-    let metric_a100s_total = register_int_gauge!("node_total_a100s", "number of a100 GPUs available").expect("couldn't create gauge");
+    //let metric_a100s_used = register_int_gauge!("node_used_a100s", "number of a100 GPUs used").expect("couldn't create gauge");
+
+    let metric_a100s_used = register_int_gauge!(a100s_used_opts).expect("couldn't create gauge");
+
+    let metric_a100s_total = register_int_gauge_vec!("node_total_a100s", "number of a100 GPUs available", &["label_a", "label_b"]).expect("couldn't create gauge");
     
     let metric_t4s_used = register_int_gauge!("node_used_t4s", "number of t4 GPUs used").expect("couldn't create counter");
     let metric_t4s_total = register_int_gauge!("node_total_t4s", "number of t4 GPUs available").expect("couldn't create counter");
@@ -92,8 +104,10 @@ fn main() {
 
             println!("a100s: {}/{}, t4s: {}/{}", a100s_used, a100s_total, t4s_used, t4s_total);
 
+            
+
             metric_a100s_used.set(a100s_used as i64);
-            metric_a100s_total.set(a100s_total as i64);            
+            metric_a100s_total.with_label_values(&["23", "34"]).set(a100s_total as i64);            
             metric_t4s_used.set(t4s_used as i64);
             metric_t4s_total.set(t4s_total as i64);
 
